@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#1b1f27">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Anteckningar">
+<title>Anteckningar</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231b1f27'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='%23e8b93f' font-family='sans-serif'%3E%E2%9C%8E%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231b1f27'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='%23e8b93f' font-family='sans-serif'%3E%E2%9C%8E%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#12151b; --panel:#1b1f27; --panel2:#232834; --text:#e9edf3; --muted:#8a93a3;
+    --accent:#e8b93f; --accent-dim:#8a6f22; --danger:#e0563f; --ok:#4caf7d;
+    --border:#2c323f;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+    display:flex; flex-direction:column; min-height:100%;
+  }
+  .hidden{display:none!important;}
+  header{
+    position:sticky; top:env(safe-area-inset-top,0px); z-index:10;
+    background:var(--panel); border-bottom:1px solid var(--border);
+    padding:10px 12px; display:flex; align-items:center; gap:8px;
+  }
+  header .datebox{flex:1; display:flex; align-items:center; justify-content:center; gap:6px; min-width:0;}
+  header button.iconbtn{
+    background:none; border:none; color:var(--text); font-size:20px; padding:6px 10px;
+    cursor:pointer; border-radius:8px; line-height:1;
+  }
+  header button.iconbtn:active{background:var(--panel2);}
+  header .dlabel{font-weight:600; font-size:15px; white-space:nowrap;}
+  header input[type=date]{
+    background:var(--panel2); color:var(--text); border:1px solid var(--border);
+    border-radius:8px; padding:4px 6px; font-size:13px; max-width:130px;
+  }
+  main{flex:1; padding:12px; display:flex; flex-direction:column; gap:14px; max-width:640px; width:100%; margin:0 auto;}
+  textarea{
+    width:100%; background:var(--panel2); color:var(--text); border:1px solid var(--border);
+    border-radius:10px; padding:10px; font-size:16px; font-family:inherit; resize:vertical;
+  }
+  #quickCapture{min-height:90px;}
+  .row{display:flex; gap:8px; align-items:center;}
+  .row.right{justify-content:flex-end;}
+  button.primary{
+    background:var(--accent); color:#1b1400; border:none; border-radius:10px;
+    padding:11px 18px; font-size:15px; font-weight:700; cursor:pointer;
+  }
+  button.primary:active{opacity:0.85;}
+  button.secondary{
+    background:var(--panel2); color:var(--text); border:1px solid var(--border);
+    border-radius:10px; padding:10px 14px; font-size:14px; cursor:pointer;
+  }
+  button.link{background:none;border:none;color:var(--accent);font-size:13px;cursor:pointer;padding:4px 0;}
+  button.danger{background:var(--danger); color:#2a0d06;}
+  .muted{color:var(--muted); font-size:13px;}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px;}
+  .entries{white-space:pre-wrap; word-break:break-word; font-size:15px; line-height:1.5;}
+  .entries img{max-width:100%; border-radius:8px; margin:6px 0; display:block;}
+  .entries .timehdr{color:var(--accent); font-weight:700; margin-top:10px; display:block;}
+  .status{font-size:13px; padding:8px 10px; border-radius:8px; margin-top:4px;}
+  .status.err{background:#3a1c17; color:#ff9d85;}
+  .status.ok{background:#173a26; color:#8ef0bb;}
+  .status.info{background:#1c2536; color:#9fc2ff;}
+  #screen-login{max-width:420px; margin:auto; width:100%; padding:24px;}
+  #screen-login h1{font-size:22px; margin-bottom:2px;}
+  #screen-login label{font-size:13px; color:var(--muted); display:block; margin:14px 0 4px;}
+  #screen-login input[type=text],#screen-login input[type=password]{
+    width:100%; background:var(--panel2); color:var(--text); border:1px solid var(--border);
+    border-radius:10px; padding:12px; font-size:16px;
+  }
+  details{margin-top:16px;}
+  details summary{color:var(--muted); font-size:13px; cursor:pointer;}
+  .searchresult{padding:10px; border-bottom:1px solid var(--border); cursor:pointer;}
+  .searchresult:active{background:var(--panel2);}
+  .searchresult .d{font-weight:700; color:var(--accent); font-size:13px;}
+  .searchresult .snippet{font-size:14px; margin-top:2px; color:var(--text);}
+  #menuPanel{position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:20; display:flex; align-items:flex-end;}
+  #menuPanel .sheet{
+    background:var(--panel); width:100%; border-radius:16px 16px 0 0; padding:18px;
+    padding-bottom:calc(18px + env(safe-area-inset-bottom,0px));
+    display:flex; flex-direction:column; gap:10px;
+  }
+  #menuPanel h2{margin:0 0 4px; font-size:16px;}
+  #menuPanel input[type=text]{
+    background:var(--panel2); color:var(--text); border:1px solid var(--border);
+    border-radius:8px; padding:9px; font-size:14px; width:100%;
+  }
+  .spinner{display:inline-block; width:14px; height:14px; border:2px solid var(--muted);
+    border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="screen-login">
+  <h1>📝 Anteckningar</h1>
+  <p class="muted">Loggar in direkt mot pCloud - ingen mellanhand, ingen hemdator som behöver vara på.</p>
+  <label for="loginUser">pCloud-användarnamn (e-post)</label>
+  <input id="loginUser" type="text" autocomplete="username" autocapitalize="none" autocorrect="off">
+  <label for="loginPass">Lösenord</label>
+  <input id="loginPass" type="password" autocomplete="current-password">
+  <div class="row" style="margin-top:18px;">
+    <button class="primary" id="btnLogin" style="flex:1;">Logga in</button>
+  </div>
+  <div id="loginStatus"></div>
+  <div id="diagBox" class="hidden">
+    <button class="link" id="btnShowDiag">Visa diagnostik (för felsökning - inget lösenord visas)</button>
+    <textarea id="diagText" class="hidden" readonly style="min-height:160px; font-size:12px; font-family:monospace; margin-top:6px;"></textarea>
+    <p class="muted hidden" id="diagCopyHint">Markera allt och kopiera, klistra in i chatten.</p>
+  </div>
+  <details>
+    <summary>Avancerat (mappsökväg)</summary>
+    <label for="basePath">Bas-mapp i pCloud</label>
+    <input id="basePath" type="text" value="/marknadsdata_raw">
+    <p class="muted">Ändra bara om din projektmapp inte heter så i pCloud.</p>
+  </details>
+  <details style="margin-top:14px;">
+    <summary>Har du en inloggningskod från pCloud-fönstret?</summary>
+    <label for="loginCode">Klistra in koden här</label>
+    <textarea id="loginCode" rows="2" placeholder="TOKEN|host"></textarea>
+    <button class="primary" id="btnLoginCode" style="margin-top:8px; width:100%;">Logga in med kod</button>
+  </details>
+  <p class="muted" style="margin-top:22px;">
+    Lösenordet skickas aldrig i klartext - en engångskod (digest) blandas in lokalt
+    innan något lämnar telefonen. Endast den resulterande inloggnings-token sparas
+    på telefonen, inte lösenordet.
+  </p>
+</div>
+
+<!-- ===================== HUVUDVY ===================== -->
+<div id="screen-main" class="hidden">
+  <header>
+    <button class="iconbtn" id="btnPrevDay" title="Föregående dag">◀</button>
+    <div class="datebox">
+      <span class="dlabel" id="dateLabel">idag</span>
+      <input type="date" id="datePicker">
+    </div>
+    <button class="iconbtn" id="btnNextDay" title="Nästa dag">▶</button>
+    <button class="iconbtn" id="btnSearch" title="Sök">🔍</button>
+    <button class="iconbtn" id="btnMenu" title="Meny">⚙</button>
+  </header>
+
+  <main>
+    <div id="captureBox">
+      <textarea id="quickCapture" placeholder="Skriv en anteckning... #tagg $TICKER   (klistra in en bild med Ctrl+V / lång-tryck-klistra)"></textarea>
+      <div class="row" style="margin-top:8px;">
+        <span class="muted" id="captureHint">Sparas som ## {tid} när du trycker Spara</span>
+        <span style="flex:1;"></span>
+        <button class="primary" id="btnSave">Spara</button>
+      </div>
+      <div id="saveStatus"></div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <strong id="entriesTitle" style="font-size:14px;">Dagens anteckningar</strong>
+        <span style="flex:1;"></span>
+        <button class="link" id="btnToggleEdit">Redigera hela dagen</button>
+      </div>
+      <div id="entriesLoading" class="muted hidden"><span class="spinner"></span> Hämtar...</div>
+      <div id="entriesView" class="entries"></div>
+      <textarea id="entriesEdit" class="hidden" style="min-height:220px;"></textarea>
+      <div class="row hidden" id="editButtons" style="margin-top:8px;">
+        <button class="secondary" id="btnCancelEdit">Avbryt</button>
+        <span style="flex:1;"></span>
+        <button class="primary" id="btnSaveEdit">Spara ändringar</button>
+      </div>
+    </div>
+
+    <!-- SÖK -->
+    <div class="card hidden" id="searchPanel">
+      <div class="row">
+        <input type="text" id="searchInput" placeholder="Sök i anteckningar..." style="flex:1; background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:9px;">
+        <button class="secondary" id="btnDoSearch">Sök</button>
+      </div>
+      <div id="searchStatus" class="muted" style="margin-top:8px;"></div>
+      <div id="searchResults"></div>
+    </div>
+  </main>
+</div>
+
+<!-- ===================== MENY / INSTÄLLNINGAR ===================== -->
+<div id="menuPanel" class="hidden">
+  <div class="sheet">
+    <h2>Inställningar</h2>
+    <div class="muted" id="menuWhoami"></div>
+    <label class="muted" style="margin-top:8px;">Bas-mapp i pCloud</label>
+    <input type="text" id="menuBasePath">
+    <div class="row" style="margin-top:6px;">
+      <button class="secondary" id="btnCloseMenu" style="flex:1;">Stäng</button>
+    </div>
+    <div class="row">
+      <button class="secondary" id="btnLogout" style="flex:1;">Logga ut (behåll åtkomst)</button>
+    </div>
+    <div class="row">
+      <button class="danger" id="btnRevoke" style="flex:1;">Radera all åtkomst permanent</button>
+    </div>
+    <p class="muted" style="font-size:12px;">
+      "Logga ut" bara raderar inloggningen på DEN HÄR telefonen. "Radera all åtkomst
+      permanent" slår dessutom av token:en på pCloud-servern - använd den om telefonen
+      är borttappad/stulen.
+    </p>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   ANTECKNINGAR - MOBIL (fristående, pratar direkt med pCloud API)
+   ============================================================
+   Ingen server behövs, ingen hemdator behöver vara på. Sidan pratar
+   direkt med pCloud:s öppna API (samma sätt som capture/anteckning_popup.py
+   pratar med lokala filer, fast via HTTP mot molnet istället för disk).
+
+   Inloggning: pCloud "digest"-autentisering. Lösenordet lämnar ALDRIG
+   telefonen i klartext - istället hämtas en engångs-"digest" från
+   servern och en SHA1-hash av (lösenord + SHA1(användarnamn) + digest)
+   skickas. Bara den resulterande token:en ("auth") sparas lokalt i
+   telefonens webbläsare - inte lösenordet.
+
+   Format: matchar exakt notes_engine.py / anteckning_popup.py på datorn:
+     notes/{YYYY}/{YYYY-MM-DD}.md   med poster som "## HH:MM\n<text>\n\n"
+     images/{YYYY-MM-DD}/{n}.png    bildreferenser som ../images/{datum}/{n}.png
+
+   KÄND BEGRÄNSNING (ärligt, inte dolt): till skillnad från popup-programmet
+   på datorn visas en inklistrad bild INTE inline i textrutan här - den
+   laddas upp och en vanlig markdown-bildreferens skrivs in som text.
+   Öppnar du dagen i TradingCenter eller Obsidian visas bilden som vanligt.
+
+   Testat innan detta byggdes (riktiga anrop mot api.pcloud.com/eapi.pcloud.com,
+   inte bara läst dokumentation): CORS fungerar för enkla GET/POST utan egna
+   headers, uploadfile via FormData fungerar, getdigest/gettextfile/listtokens
+   fungerar. INTE testat: en riktig inloggning end-to-end (kräver ett riktigt
+   lösenord, vilket jag som byggde detta aldrig ska mata in åt dig) och
+   listfolder/sök över flera år. Om något strular första gången: kolla
+   felmeddelandet som visas i appen, det är pCloud:s egna felsvar, inte gissat.
+   ============================================================ */
+
+const LS = {
+  auth: 'pc_auth', host: 'pc_host', base: 'pc_base', user: 'pc_username'
+};
+
+let state = {
+  auth: localStorage.getItem(LS.auth) || null,
+  host: localStorage.getItem(LS.host) || 'eapi.pcloud.com',
+  base: localStorage.getItem(LS.base) || '/marknadsdata_raw',
+  username: localStorage.getItem(LS.user) || '',
+  currentDate: todayStr(),
+  cache: {},        // dateStr -> raw file content (session-only, minskar antal anrop)
+  searchCache: {}    // year -> { filename: content }
+};
+
+// ---------- Datum-hjälpare ----------
+function pad2(n){ return n<10 ? '0'+n : ''+n; }
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());
+}
+function yearOf(dateStr){ return dateStr.slice(0,4); }
+function addDays(dateStr, delta){
+  const d = new Date(dateStr+'T12:00:00');
+  d.setDate(d.getDate()+delta);
+  return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());
+}
+function nowTimeStr(){
+  const d = new Date();
+  return pad2(d.getHours())+':'+pad2(d.getMinutes());
+}
+
+// ---------- SHA1 (ren JS, inga externa beroenden/CDN) ----------
+function sha1Hex(asciiOrUtf8Str){
+  function toUtf8Bytes(str){
+    const bytes = [];
+    for (let i=0;i<str.length;i++){
+      let code = str.codePointAt(i);
+      if (code > 0xFFFF) i++;
+      if (code < 0x80){ bytes.push(code); }
+      else if (code < 0x800){ bytes.push(0xC0|(code>>6), 0x80|(code&0x3F)); }
+      else if (code < 0x10000){ bytes.push(0xE0|(code>>12),0x80|((code>>6)&0x3F),0x80|(code&0x3F)); }
+      else { bytes.push(0xF0|(code>>18),0x80|((code>>12)&0x3F),0x80|((code>>6)&0x3F),0x80|(code&0x3F)); }
+    }
+    return bytes;
+  }
+  const bytes = toUtf8Bytes(asciiOrUtf8Str);
+  const bitLen = bytes.length*8;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  for (let i=7;i>=0;i--) bytes.push((i>=4)?0:((bitLen>>>(8*i))&0xFF));
+  // (fungerar för meddelanden < 2^32 bitar, mer än nog här)
+  let h0=0x67452301,h1=0xEFCDAB89,h2=0x98BADCFE,h3=0x10325476,h4=0xC3D2E1F0;
+  function rotl(n,b){ return ((n<<b)|(n>>>(32-b)))>>>0; }
+  for (let chunkStart=0; chunkStart<bytes.length; chunkStart+=64){
+    const w = new Array(80);
+    for (let i=0;i<16;i++){
+      w[i] = (bytes[chunkStart+i*4]<<24)|(bytes[chunkStart+i*4+1]<<16)|(bytes[chunkStart+i*4+2]<<8)|(bytes[chunkStart+i*4+3]);
+      w[i] = w[i]>>>0;
+    }
+    for (let i=16;i<80;i++){ w[i] = rotl(w[i-3]^w[i-8]^w[i-14]^w[i-16],1); }
+    let a=h0,b=h1,c=h2,d=h3,e=h4;
+    for (let i=0;i<80;i++){
+      let f,k;
+      if (i<20){ f=(b&c)|((~b)&d); k=0x5A827999; }
+      else if (i<40){ f=b^c^d; k=0x6ED9EBA1; }
+      else if (i<60){ f=(b&c)|(b&d)|(c&d); k=0x8F1BBCDC; }
+      else { f=b^c^d; k=0xCA62C1D6; }
+      const temp = (rotl(a,5) + f + e + k + w[i])>>>0;
+      e=d; d=c; c=rotl(b,30); b=a; a=temp;
+    }
+    h0=(h0+a)>>>0; h1=(h1+b)>>>0; h2=(h2+c)>>>0; h3=(h3+d)>>>0; h4=(h4+e)>>>0;
+  }
+  function hex(n){ return ('00000000'+(n>>>0).toString(16)).slice(-8); }
+  return hex(h0)+hex(h1)+hex(h2)+hex(h3)+hex(h4);
+}
+
+// ---------- pCloud API ----------
+async function pcFetch(host, method, params, formData){
+  const url = new URL('https://'+host+'/'+method);
+  Object.keys(params||{}).forEach(k => { if (params[k]!==undefined && params[k]!==null) url.searchParams.set(k, params[k]); });
+  const opts = formData ? { method:'POST', mode:'cors', body: formData }
+                         : { method:'GET', mode:'cors' };
+  let resp;
+  try {
+    resp = await fetch(url.toString(), opts);
+  } catch(e){
+    throw new Error('Nätverksfel mot pCloud (' + e.message + ') - kolla internetuppkopplingen.');
+  }
+  const text = await resp.text();
+  let json;
+  try { json = JSON.parse(text); }
+  catch(e){ throw new Error('Oväntat svar från pCloud (inte JSON): ' + text.slice(0,150)); }
+  return json;
+}
+
+async function pcAuthedCall(method, params, formData){
+  const p = Object.assign({}, params, { auth: state.auth, access_token: state.auth });
+  const json = await pcFetch(state.host, method, formData ? {auth:state.auth, access_token:state.auth} : p, formData ? appendAuthToForm(formData) : null);
+  if (json.result !== 0){
+    throw Object.assign(new Error(pcErrorText(json)), { pcResult: json.result });
+  }
+  return json;
+}
+function appendAuthToForm(fd){
+  fd.append('auth', state.auth);
+  fd.append('access_token', state.auth);
+  return fd;
+}
+function pcErrorText(json){
+  return (json.error || ('Fel '+json.result)) + ' (pCloud-kod ' + json.result + ')';
+}
+
+// window.lastLoginDebug fylls i vid varje inloggningsförsök - ALDRIG med
+// lösenordet i klartext (digest/passworddigest är enkelriktade hashar,
+// går inte att räkna baklänges till lösenordet), bara det som behövs för
+// att felsöka VILKET steg som faktiskt går fel. Visas bara om man aktivt
+// öppnar "Diagnostik" på inloggningsskärmen.
+window.lastLoginDebug = [];
+
+async function login(username, password){
+  window.lastLoginDebug = [];
+  // 1) Hämta engångs-digest. Testar båda datacentren om det behövs -
+  //    vi vet inte i förväg om kontot ligger i USA eller Europa.
+  const hostsToTry = ['eapi.pcloud.com', 'api.pcloud.com'];
+  let lastErr = null;
+  for (const host of hostsToTry){
+    const entry = { host: host };
+    try {
+      const dg = await pcFetch(host, 'getdigest', {});
+      entry.getdigest_result = dg.result;
+      entry.digest_received = dg.digest ? (dg.digest.slice(0,12)+'…['+dg.digest.length+' tecken]') : null;
+      if (dg.result !== 0) { entry.step_failed = 'getdigest'; lastErr = new Error(pcErrorText(dg)); window.lastLoginDebug.push(entry); continue; }
+      const digest = dg.digest;
+      const usernameForHash = username.toLowerCase();
+      const innerHash = sha1Hex(usernameForHash);
+      const passworddigest = sha1Hex(password + innerHash + digest);
+      entry.username_sent = username;
+      entry.username_lowercased_for_hash = usernameForHash;
+      entry.password_length = password.length;
+      entry.inner_hash_of_username = innerHash;
+      entry.passworddigest_computed = passworddigest;
+      // "userinfo" visade sig kunna svara med result:0 och alla kontouppgifter
+      // UTAN att någonsin bifoga en auth-token, oavsett logout/authexpire -
+      // dvs den verkar acceptera digest+passworddigest som "bevis nog för att
+      // visa info" utan att gå igenom hela inloggnings/token-kedjan. Byter
+      // till "listfolder" istället - en metod som ALLTID kräver en riktig,
+      // giltig token/session för att svara på något alls, vilket tvingar
+      // fram den fulla inloggningskedjan (och en riktig auth-token) om
+      // kontot/lösenordet stämmer.
+      // Autentiseringen lyckas bevisligen (vi FÅR tillbaka riktig kontodata),
+      // men ingen auth-token bifogas oavsett metod/logout/authexpire. Sista
+      // dokumenterade pusselbiten vi inte testat: "device" - en textsträng
+      // som identifierar appen. Utan den kanske servern inte bryr sig om att
+      // skapa ett spårbart/nytt token att skicka tillbaka.
+      const TWENTY_YEARS_SEC = 20 * 365 * 24 * 60 * 60;
+      const li = await pcFetch(host, 'listfolder', {
+        path: '/', getauth: 1, logout: 1, authexpire: TWENTY_YEARS_SEC,
+        device: 'Anteckningar mobil-PWA',
+        username: username, digest: digest, passworddigest: passworddigest
+      });
+      entry.call_result = li.result;
+      entry.call_error = li.error || null;
+      entry.has_auth_field = Object.prototype.hasOwnProperty.call(li, 'auth');
+      entry.has_hostname_field = Object.prototype.hasOwnProperty.call(li, 'hostname');
+      entry.top_level_keys = Object.keys(li).join(', ');
+      window.lastLoginDebug.push(entry);
+      if (li.result === 0 && li.auth){
+        state.auth = li.auth;
+        state.host = li.hostname || host;
+        state.username = username;
+        localStorage.setItem(LS.auth, state.auth);
+        localStorage.setItem(LS.host, state.host);
+        localStorage.setItem(LS.user, state.username);
+        return true;
+      } else {
+        entry.step_failed = 'listfolder';
+        lastErr = new Error(pcErrorText(li));
+        // Fel lösenord etc - ingen mening att testa andra hosten också om
+        // felet inte är "fel server". Men vi provar ändå en gång till för
+        // säkerhets skull nedan (loopen fortsätter).
+      }
+    } catch(e){ entry.exception = e.message; window.lastLoginDebug.push(entry); lastErr = e; }
+  }
+  throw lastErr || new Error('Inloggning misslyckades av okänd anledning.');
+}
+
+function loginWithToken(codeStr){
+  // OAuth-fluödets kod är formatet "TOKEN|host" (t.ex. "abc123|eapi.pcloud.com"),
+  // exakt samma två fält som den vanliga inloggningen sparar (state.auth/state.host) -
+  // se login() ovan. Ingen server-anrop behövs har, koden AR redan en giltig
+  // auth-token fran pCloud.
+  const raw = (codeStr || '').trim();
+  const sep = raw.lastIndexOf('|');
+  if (sep < 0) throw new Error('Ogiltig kod - saknar "|" mellan token och server.');
+  const token = raw.slice(0, sep).trim();
+  const host = raw.slice(sep + 1).trim();
+  if (!token || !host) throw new Error('Ogiltig kod - token eller server saknas.');
+  state.auth = token;
+  state.host = host;
+  localStorage.setItem(LS.auth, state.auth);
+  localStorage.setItem(LS.host, state.host);
+}
+
+async function revokeAllTokensAndLogout(){
+  try {
+    const list = await pcAuthedCall('listtokens', {});
+    const tokens = list.tokens || [];
+    for (const t of tokens){
+      try { await pcAuthedCall('deletetoken', { tokenid: t.tokenid }); }
+      catch(e){ /* fortsätt även om en enskild borttagning failar */ }
+    }
+  } finally {
+    clearLocalLogin();
+  }
+}
+function clearLocalLogin(){
+  localStorage.removeItem(LS.auth);
+  state.auth = null;
+}
+
+// ---------- Filer ----------
+function noteFilePath(dateStr){
+  return state.base + '/notes/' + yearOf(dateStr) + '/' + dateStr + '.md';
+}
+function noteFolderPath(dateStr){
+  return state.base + '/notes/' + yearOf(dateStr);
+}
+function imageFolderPath(dateStr){
+  return state.base + '/images/' + dateStr;
+}
+
+async function readNoteRaw(dateStr){
+  if (state.cache[dateStr] !== undefined) return state.cache[dateStr];
+  try {
+    const json = await pcFetch(state.host, 'gettextfile', { path: noteFilePath(dateStr), auth: state.auth, access_token: state.auth });
+    // gettextfile kan antingen ge {result:0, content:"..."} eller (om filen
+    // saknas) ett vanligt felsvar. Vi hanterar båda formerna försiktigt.
+    if (json.result === 0){
+      const content = (json.content !== undefined) ? json.content : (typeof json === 'string' ? json : '');
+      state.cache[dateStr] = content;
+      return content;
+    }
+    if (json.result === 2009 || json.result === 2005){ state.cache[dateStr] = ''; return ''; }
+    throw new Error(pcErrorText(json));
+  } catch(e){
+    if (e.message && e.message.indexOf('inte JSON') !== -1){
+      // gettextfile strömmar ibland raw text direkt (inte inlindat i JSON) -
+      // då landar vi här eftersom pcFetch försöker JSON.parse:a. Hämta om
+      // som ren text istället.
+      const resp = await fetch('https://'+state.host+'/gettextfile?path='+encodeURIComponent(noteFilePath(dateStr))+'&auth='+state.auth+'&access_token='+state.auth);
+      if (resp.ok){ const t = await resp.text(); state.cache[dateStr]=t; return t; }
+    }
+    throw e;
+  }
+}
+
+async function writeNoteRaw(dateStr, content, retry){
+  const fd = new FormData();
+  fd.append('path', noteFolderPath(dateStr));
+  fd.append('filename', dateStr + '.md');
+  fd.append('file', new Blob([content], {type:'text/plain; charset=utf-8'}), dateStr + '.md');
+  try {
+    await pcAuthedCall('uploadfile', {}, fd);
+  } catch(e){
+    if (!retry && (e.pcResult === 2005 || e.pcResult === 2002)){
+      // Mappen för året finns troligen inte än (t.ex. nyårsskifte) - skapa
+      // den och försök en gång till.
+      await pcAuthedCall('createfolderifnotexists', { path: noteFolderPath(dateStr) });
+      return writeNoteRaw(dateStr, content, true);
+    }
+    throw e;
+  }
+  state.cache[dateStr] = content;
+}
+
+async function appendEntry(dateStr, timeStr, text){
+  const existing = await readNoteRaw(dateStr);
+  const sep = existing && existing.trim().length ? (existing.endsWith('\n\n') ? '' : (existing.endsWith('\n') ? '\n' : '\n\n')) : '';
+  const block = '## ' + timeStr + '\n' + text.trim() + '\n\n';
+  const newContent = existing + sep + block;
+  await writeNoteRaw(dateStr, newContent);
+  return newContent;
+}
+
+async function uploadImageBlob(dateStr, blob, ext){
+  const filename = Date.now() + '_' + Math.floor(Math.random()*1000) + '.' + ext;
+  const fd = new FormData();
+  fd.append('path', imageFolderPath(dateStr));
+  fd.append('filename', filename);
+  fd.append('file', blob, filename);
+  try {
+    await pcAuthedCall('uploadfile', {}, fd);
+  } catch(e){
+    if (e.pcResult === 2005 || e.pcResult === 2002){
+      await pcAuthedCall('createfolderifnotexists', { path: imageFolderPath(dateStr) });
+      await pcAuthedCall('uploadfile', {}, (function(){ const fd2=new FormData(); fd2.append('path',imageFolderPath(dateStr)); fd2.append('filename',filename); fd2.append('file',blob,filename); return fd2; })());
+    } else { throw e; }
+  }
+  return '../images/' + dateStr + '/' + filename;
+}
+
+// ---------- Rendering av en dags text (enkel markdown: ## rubriker + bilder) ----------
+// KÄND, MEDVETEN BEGRÄNSNING: pCloud:s direktlänk-metoder för att visa en bild
+// (getfilelink/getthumblink) är enligt deras egen dokumentation blockerade för
+// webbappar ("Referrer is restricted to pcloud.com") - jag testade inte det
+// här mot en påhittad bild eftersom dokumentationen redan är tydlig, och ville
+// hellre vara ärlig och hoppa över det än leverera något jag inte litar på.
+// Bilder laddas upp korrekt och referensen sparas rätt i filen (syns fint i
+// TradingCenter/Obsidian/skrivbordsprogrammet) - de visas bara inte inline
+// HÄR i mobilappen än. Det går att lösa senare (hämta bildbytes via ett annat
+// anrop och bygga en data:-URL i minnet), men kräver mer testning än vad som
+// rymdes i den här första, snabba versionen.
+function renderEntries(raw){
+  if (!raw || !raw.trim()) return '<span class="muted">Inga anteckningar den här dagen än.</span>';
+  const escaped = raw
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  let html = escaped.replace(/^## (.+)$/gm, '<span class="timehdr">$1</span>');
+  html = html.replace(/!\[[^\]]*\]\(([^)]+)\)/g, function(m, relPath){
+    return '<span class="muted">🖼 [bild bifogad - visas i TradingCenter/skrivbordsappen: '+relPath+']</span>';
+  });
+  return html;
+}
+
+// ---------- Sök ----------
+async function listYearFiles(year){
+  if (state.searchCache[year]) return state.searchCache[year];
+  const json = await pcAuthedCall('listfolder', { path: state.base + '/notes/' + year });
+  const files = (json.metadata && json.metadata.contents || []).filter(f => !f.isfolder && /\.md$/i.test(f.name));
+  state.searchCache[year] = files.map(f => f.name.replace(/\.md$/i,''));
+  return state.searchCache[year];
+}
+
+async function doSearch(term){
+  const q = term.trim().toLowerCase();
+  if (!q) return [];
+  const thisYear = parseInt(todayStr().slice(0,4),10);
+  const years = [thisYear, thisYear-1];
+  let dates = [];
+  for (const y of years){
+    try { dates = dates.concat(await listYearFiles(String(y))); }
+    catch(e){ /* året kanske inte finns än/alls - hoppa över tyst */ }
+  }
+  dates.sort().reverse();
+  const results = [];
+  for (const d of dates){
+    let content;
+    try { content = await readNoteRaw(d); } catch(e){ continue; }
+    const idx = content.toLowerCase().indexOf(q);
+    if (idx !== -1){
+      const start = Math.max(0, idx-40);
+      const snippet = (start>0?'…':'') + content.slice(start, idx+q.length+60).replace(/\n/g,' ') + '…';
+      results.push({ date: d, snippet });
+      if (results.length >= 40) break;
+    }
+  }
+  return results;
+}
+
+// ============================================================
+// UI-LOGIK
+// ============================================================
+const el = id => document.getElementById(id);
+
+function showScreen(name){
+  el('screen-login').classList.toggle('hidden', name!=='login');
+  el('screen-main').classList.toggle('hidden', name!=='main');
+}
+
+function setStatus(elId, msg, kind){
+  const box = el(elId);
+  if (!msg){ box.innerHTML=''; return; }
+  box.innerHTML = '<div class="status '+(kind||'info')+'">'+msg+'</div>';
+}
+
+function formatDateLabel(dateStr){
+  if (dateStr === todayStr()) return 'Idag · ' + dateStr;
+  if (dateStr === addDays(todayStr(),-1)) return 'Igår · ' + dateStr;
+  return dateStr;
+}
+
+async function loadDay(dateStr){
+  state.currentDate = dateStr;
+  el('datePicker').value = dateStr;
+  el('dateLabel').textContent = formatDateLabel(dateStr);
+  el('entriesEdit').classList.add('hidden');
+  el('editButtons').classList.add('hidden');
+  el('entriesView').classList.remove('hidden');
+  el('entriesLoading').classList.remove('hidden');
+  el('entriesView').innerHTML = '';
+  try {
+    const raw = await readNoteRaw(dateStr);
+    el('entriesView').innerHTML = renderEntries(raw);
+  } catch(e){
+    el('entriesView').innerHTML = '<span class="status err">Kunde inte hämta: '+escapeHtml(e.message)+'</span>';
+  } finally {
+    el('entriesLoading').classList.add('hidden');
+  }
+}
+function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function doSave(){
+  const text = el('quickCapture').value;
+  if (!text.trim()) return;
+  const btn = el('btnSave');
+  btn.disabled = true; btn.textContent = 'Sparar...';
+  setStatus('saveStatus', '', null);
+  try {
+    await appendEntry(state.currentDate, nowTimeStr(), text);
+    el('quickCapture').value = '';
+    setStatus('saveStatus', '✓ Sparat', 'ok');
+    await loadDay(state.currentDate);
+  } catch(e){
+    setStatus('saveStatus', 'Kunde inte spara: ' + escapeHtml(e.message) + ' - texten ligger kvar i rutan, försök igen.', 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Spara';
+  }
+}
+
+function insertAtCursor(textarea, text){
+  const start = textarea.selectionStart, end = textarea.selectionEnd;
+  const val = textarea.value;
+  textarea.value = val.slice(0,start) + text + val.slice(end);
+  const pos = start + text.length;
+  textarea.selectionStart = textarea.selectionEnd = pos;
+  textarea.focus();
+}
+
+async function handlePasteImage(e){
+  const items = (e.clipboardData || e.originalEvent && e.originalEvent.clipboardData || {}).items;
+  if (!items) return;
+  let imageItem = null;
+  for (const it of items){ if (it.type && it.type.indexOf('image/') === 0){ imageItem = it; break; } }
+  if (!imageItem) return; // vanlig textklistring - låt webbläsaren sköta det själv
+  e.preventDefault();
+  const blob = imageItem.getAsFile();
+  const ext = (imageItem.type.split('/')[1] || 'png').replace('jpeg','jpg');
+  const ta = e.target;
+  insertAtCursor(ta, '\n[laddar upp bild...]\n');
+  try {
+    const relPath = await uploadImageBlob(state.currentDate, blob, ext);
+    ta.value = ta.value.replace('\n[laddar upp bild...]\n', '\n![]('+relPath+')\n');
+  } catch(err){
+    ta.value = ta.value.replace('\n[laddar upp bild...]\n', '\n[bilduppladdning misslyckades: '+err.message+']\n');
+  }
+}
+
+// ---------- Event wiring ----------
+window.addEventListener('DOMContentLoaded', () => {
+  el('basePath').value = state.base;
+
+  if (state.auth){
+    showScreen('main');
+    loadDay(state.currentDate);
+  } else {
+    showScreen('login');
+    if (state.username) el('loginUser').value = state.username;
+  }
+
+  el('btnLogin').addEventListener('click', async () => {
+    const u = el('loginUser').value.trim();
+    const p = el('loginPass').value;
+    state.base = el('basePath').value.trim() || '/marknadsdata_raw';
+    localStorage.setItem(LS.base, state.base);
+    if (!u || !p){ setStatus('loginStatus','Fyll i både användarnamn och lösenord.','err'); return; }
+    el('btnLogin').disabled = true; el('btnLogin').textContent = 'Loggar in...';
+    setStatus('loginStatus','', null);
+    try {
+      await login(u, p);
+      el('loginPass').value = '';
+      showScreen('main');
+      loadDay(state.currentDate);
+    } catch(e){
+      setStatus('loginStatus', 'Inloggning misslyckades: ' + escapeHtml(e.message), 'err');
+      el('diagBox').classList.remove('hidden');
+    } finally {
+      el('btnLogin').disabled = false; el('btnLogin').textContent = 'Logga in';
+    }
+  });
+
+  el('btnLoginCode').addEventListener('click', () => {
+    const code = el('loginCode').value;
+    if (!code.trim()){ setStatus('loginStatus','Klistra in koden du fick fran OAuth-fonstret.','err'); return; }
+    try {
+      loginWithToken(code);
+      el('loginCode').value = '';
+      showScreen('main');
+      loadDay(state.currentDate);
+    } catch(e){
+      setStatus('loginStatus', 'Kunde inte logga in med koden: ' + escapeHtml(e.message), 'err');
+    }
+  });
+
+  el('btnShowDiag').addEventListener('click', () => {
+    const lines = (window.lastLoginDebug || []).map((entry, i) =>
+      '--- Försök ' + (i+1) + ' (' + entry.host + ') ---\n' +
+      Object.keys(entry).filter(k=>k!=='host').map(k => k + ': ' + entry[k]).join('\n')
+    ).join('\n\n');
+    el('diagText').value = lines || '(ingen diagnostik tillgänglig - inget försök gjordes?)';
+    el('diagText').classList.remove('hidden');
+    el('diagCopyHint').classList.remove('hidden');
+    el('btnShowDiag').classList.add('hidden');
+  });
+
+  el('btnSave').addEventListener('click', doSave);
+  el('quickCapture').addEventListener('paste', handlePasteImage);
+  el('quickCapture').addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doSave();
+  });
+
+  el('btnPrevDay').addEventListener('click', () => loadDay(addDays(state.currentDate,-1)));
+  el('btnNextDay').addEventListener('click', () => loadDay(addDays(state.currentDate,1)));
+  el('datePicker').addEventListener('change', (e) => { if (e.target.value) loadDay(e.target.value); });
+
+  el('btnToggleEdit').addEventListener('click', async () => {
+    const editing = !el('entriesEdit').classList.contains('hidden');
+    if (editing){ el('entriesEdit').classList.add('hidden'); el('entriesView').classList.remove('hidden'); el('editButtons').classList.add('hidden'); return; }
+    el('entriesEdit').value = await readNoteRaw(state.currentDate);
+    el('entriesView').classList.add('hidden');
+    el('entriesEdit').classList.remove('hidden');
+    el('editButtons').classList.remove('hidden');
+  });
+  el('btnCancelEdit').addEventListener('click', () => {
+    el('entriesEdit').classList.add('hidden'); el('entriesView').classList.remove('hidden'); el('editButtons').classList.add('hidden');
+  });
+  el('btnSaveEdit').addEventListener('click', async () => {
+    const btn = el('btnSaveEdit');
+    btn.disabled = true; btn.textContent = 'Sparar...';
+    try {
+      await writeNoteRaw(state.currentDate, el('entriesEdit').value);
+      el('entriesEdit').classList.add('hidden'); el('entriesView').classList.remove('hidden'); el('editButtons').classList.add('hidden');
+      await loadDay(state.currentDate);
+    } catch(e){
+      alert('Kunde inte spara ändringarna: ' + e.message);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Spara ändringar';
+    }
+  });
+
+  el('btnSearch').addEventListener('click', () => {
+    el('searchPanel').classList.toggle('hidden');
+    if (!el('searchPanel').classList.contains('hidden')) el('searchInput').focus();
+  });
+  el('btnDoSearch').addEventListener('click', runSearch);
+  el('searchInput').addEventListener('keydown', (e) => { if (e.key==='Enter') runSearch(); });
+  async function runSearch(){
+    const term = el('searchInput').value;
+    if (!term.trim()) return;
+    el('searchStatus').innerHTML = '<span class="spinner"></span> Söker...';
+    el('searchResults').innerHTML = '';
+    try {
+      const results = await doSearch(term);
+      el('searchStatus').textContent = results.length ? (results.length+' träffar (senaste två åren)') : 'Inga träffar.';
+      el('searchResults').innerHTML = results.map(r =>
+        '<div class="searchresult" data-date="'+r.date+'"><div class="d">'+r.date+'</div><div class="snippet">'+escapeHtml(r.snippet)+'</div></div>'
+      ).join('');
+      el('searchResults').querySelectorAll('.searchresult').forEach(node => {
+        node.addEventListener('click', () => {
+          loadDay(node.getAttribute('data-date'));
+          el('searchPanel').classList.add('hidden');
+        });
+      });
+    } catch(e){
+      el('searchStatus').textContent = 'Sökfel: ' + e.message;
+    }
+  }
+
+  el('btnMenu').addEventListener('click', () => {
+    el('menuWhoami').textContent = 'Inloggad som ' + (state.username || '?') + ' · server: ' + state.host;
+    el('menuBasePath').value = state.base;
+    el('menuPanel').classList.remove('hidden');
+  });
+  el('btnCloseMenu').addEventListener('click', () => {
+    const newBase = el('menuBasePath').value.trim();
+    if (newBase && newBase !== state.base){
+      state.base = newBase; localStorage.setItem(LS.base, state.base);
+      state.cache = {}; state.searchCache = {};
+      loadDay(state.currentDate);
+    }
+    el('menuPanel').classList.add('hidden');
+  });
+  el('btnLogout').addEventListener('click', () => {
+    if (!confirm('Logga ut på den här telefonen? Du kan logga in igen när som helst.')) return;
+    clearLocalLogin();
+    el('menuPanel').classList.add('hidden');
+    location.reload();
+  });
+  el('btnRevoke').addEventListener('click', async () => {
+    if (!confirm('Detta raderar ALL åtkomst för den här appen på pCloud-servern (inte bara på telefonen) - använd om telefonen är borttappad eller stulen. Fortsätta?')) return;
+    el('btnRevoke').disabled = true; el('btnRevoke').textContent = 'Raderar...';
+    try {
+      await revokeAllTokensAndLogout();
+      alert('Klart. All åtkomst är återkallad. Du kan logga in på nytt om det behövs.');
+    } catch(e){
+      clearLocalLogin();
+      alert('Kunde inte bekräfta återkallning mot servern (' + e.message + '), men den lokala inloggningen på den här telefonen är i alla fall borttagen nu. Kontrollera gärna pCloud-kontot manuellt om du vill vara helt säker.');
+    } finally {
+      el('menuPanel').classList.add('hidden');
+      location.reload();
+    }
+  });
+});
+</script>
+</body>
+</html>
