@@ -325,8 +325,15 @@ function sha1Hex(asciiOrUtf8Str){
 async function pcFetch(host, method, params, formData){
   const url = new URL('https://'+host+'/'+method);
   Object.keys(params||{}).forEach(k => { if (params[k]!==undefined && params[k]!==null) url.searchParams.set(k, params[k]); });
-  const opts = formData ? { method:'POST', mode:'cors', body: formData }
-                         : { method:'GET', mode:'cors' };
+  // referrerPolicy:'no-referrer' ar KRITISKT har - pCloud:s "streaming"-metoder
+  // (gettextfile, getfilelink m.fl.) svarar med "Log in failed" (kod 2000)
+  // pa ALLA anrop, oavsett hur giltig token:en ar, om webblasaren skickar ett
+  // Referer-header som inte ar pcloud.com (dokumenterat: "Referrer is
+  // restricted to pcloud.com"). En sida hostad pa GitHub Pages skickar
+  // annars automatiskt Referer: https://aglabber.github.io/... i varje
+  // fetch(), vilket utloser spärren - inget fel pa lösenord/OAuth/token.
+  const opts = formData ? { method:'POST', mode:'cors', body: formData, referrerPolicy:'no-referrer' }
+                         : { method:'GET', mode:'cors', referrerPolicy:'no-referrer' };
   let resp;
   try {
     resp = await fetch(url.toString(), opts);
@@ -494,7 +501,7 @@ async function readNoteRaw(dateStr){
       // gettextfile strömmar ibland raw text direkt (inte inlindat i JSON) -
       // då landar vi här eftersom pcFetch försöker JSON.parse:a. Hämta om
       // som ren text istället.
-      const resp = await fetch('https://'+state.host+'/gettextfile?path='+encodeURIComponent(noteFilePath(dateStr))+'&auth='+state.auth+'&access_token='+state.auth);
+      const resp = await fetch('https://'+state.host+'/gettextfile?path='+encodeURIComponent(noteFilePath(dateStr))+'&auth='+state.auth+'&access_token='+state.auth, {referrerPolicy:'no-referrer'});
       if (resp.ok){ const t = await resp.text(); state.cache[dateStr]=t; return t; }
     }
     throw e;
