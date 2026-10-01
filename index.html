@@ -322,8 +322,14 @@ function sha1Hex(asciiOrUtf8Str){
 }
 
 // ---------- pCloud API ----------
+// pCloud blockerar/forvanskar svar (getdigest, gettextfile m.fl.) pa anrop
+// direkt fran en webblasare pa nagon annan sida an pcloud.com - en Cloudflare
+// Worker gor anropen server-till-server istallet, se pcloud-proxy-worker.js.
+// BYT UT NASTA RAD mot din riktiga *.workers.dev-adress nar du satt upp workern!
+const PCLOUD_PROXY = 'https://calm-lab-22b9.theandreas.workers.dev';
+
 async function pcFetch(host, method, params, formData){
-  const url = new URL('https://'+host+'/'+method);
+  const url = new URL(PCLOUD_PROXY + '/' + host + '/' + method);
   Object.keys(params||{}).forEach(k => { if (params[k]!==undefined && params[k]!==null) url.searchParams.set(k, params[k]); });
   // referrerPolicy:'no-referrer' ar KRITISKT har - pCloud:s "streaming"-metoder
   // (gettextfile, getfilelink m.fl.) svarar med "Log in failed" (kod 2000)
@@ -501,7 +507,7 @@ async function readNoteRaw(dateStr){
       // gettextfile strömmar ibland raw text direkt (inte inlindat i JSON) -
       // då landar vi här eftersom pcFetch försöker JSON.parse:a. Hämta om
       // som ren text istället.
-      const resp = await fetch('https://'+state.host+'/gettextfile?path='+encodeURIComponent(noteFilePath(dateStr))+'&auth='+state.auth+'&access_token='+state.auth, {referrerPolicy:'no-referrer'});
+      const resp = await fetch(PCLOUD_PROXY+'/'+state.host+'/gettextfile?path='+encodeURIComponent(noteFilePath(dateStr))+'&auth='+state.auth+'&access_token='+state.auth, {referrerPolicy:'no-referrer'});
       if (resp.ok){ const t = await resp.text(); state.cache[dateStr]=t; return t; }
     }
     throw e;
