@@ -246,7 +246,7 @@
    ============================================================ */
 
 const LS = {
-  auth: 'pc_auth', host: 'pc_host', base: 'pc_base', user: 'pc_username'
+  auth: 'pc_auth', host: 'pc_host', base: 'pc_base', user: 'pc_username', authMethod: 'pc_authmethod'
 };
 
 let state = {
@@ -254,6 +254,11 @@ let state = {
   host: localStorage.getItem(LS.host) || 'eapi.pcloud.com',
   base: localStorage.getItem(LS.base) || '/marknadsdata_raw',
   username: localStorage.getItem(LS.user) || '',
+  // 'password' (klassisk auth-session-token) eller 'oauth' (access_token) -
+  // pCloud behandlar dessa som OLIKA sorters bevis. Att skicka fel sorts
+  // falt (t.ex. en OAuth-token i "auth"-faltet) kan fa servern att svara
+  // "Log in failed" (2000) aven med en annars giltig, farsk token.
+  authMethod: localStorage.getItem(LS.authMethod) || 'password',
   currentDate: todayStr(),
   cache: {},        // dateStr -> raw file content (session-only, minskar antal anrop)
   searchCache: {}    // year -> { filename: content }
@@ -353,17 +358,24 @@ async function pcFetch(host, method, params, formData){
   return json;
 }
 
+function authParams(){
+  // Skicka ENDAST det falt som matchar hur man faktiskt loggade in - se
+  // kommentaren vid state.authMethod ovan.
+  return state.authMethod === 'oauth'
+    ? { access_token: state.auth }
+    : { auth: state.auth };
+}
 async function pcAuthedCall(method, params, formData){
-  const p = Object.assign({}, params, { auth: state.auth, access_token: state.auth });
-  const json = await pcFetch(state.host, method, formData ? {auth:state.auth, access_token:state.auth} : p, formData ? appendAuthToForm(formData) : null);
+  const p = Object.assign({}, params, authParams());
+  const json = await pcFetch(state.host, method, formData ? authParams() : p, formData ? appendAuthToForm(formData) : null);
   if (json.result !== 0){
     throw Object.assign(new Error(pcErrorText(json)), { pcResult: json.result });
   }
   return json;
 }
 function appendAuthToForm(fd){
-  fd.append('auth', state.auth);
-  fd.append('access_token', state.auth);
+  const ap = authParams();
+  Object.keys(ap).forEach(k => fd.append(k, ap[k]));
   return fd;
 }
 function pcErrorText(json){
@@ -428,9 +440,11 @@ async function login(username, password){
         state.auth = li.auth;
         state.host = li.hostname || host;
         state.username = username;
+        state.authMethod = 'password';
         localStorage.setItem(LS.auth, state.auth);
         localStorage.setItem(LS.host, state.host);
         localStorage.setItem(LS.user, state.username);
+        localStorage.setItem(LS.authMethod, state.authMethod);
         return true;
       } else {
         entry.step_failed = 'listfolder';
@@ -457,8 +471,10 @@ function loginWithToken(codeStr){
   if (!token || !host) throw new Error('Ogiltig kod - token eller server saknas.');
   state.auth = token;
   state.host = host;
+  state.authMethod = 'oauth';
   localStorage.setItem(LS.auth, state.auth);
   localStorage.setItem(LS.host, state.host);
+  localStorage.setItem(LS.authMethod, state.authMethod);
 }
 
 async function revokeAllTokensAndLogout(){
@@ -475,6 +491,7 @@ async function revokeAllTokensAndLogout(){
 }
 function clearLocalLogin(){
   localStorage.removeItem(LS.auth);
+  localStorage.removeItem(LS.authMethod);
   state.auth = null;
 }
 
@@ -492,7 +509,7 @@ function imageFolderPath(dateStr){
 async function readNoteRaw(dateStr){
   if (state.cache[dateStr] !== undefined) return state.cache[dateStr];
   try {
-    const json = await pcFetch(state.host, 'gettextfile', { path: noteFilePath(dateStr), auth: state.auth, access_token: state.auth });
+    const json = await pcFetch(state.host, 'gettextfile', Object.assign({ path: noteFilePath(dateStr) }, authParams()));
     // gettextfile kan antingen ge {result:0, content:"..."} eller (om filen
     // saknas) ett vanligt felsvar. Vi hanterar båda formerna försiktigt.
     if (json.result === 0){
@@ -507,7 +524,8 @@ async function readNoteRaw(dateStr){
       // gettextfile strömmar ibland raw text direkt (inte inlindat i JSON) -
       // då landar vi här eftersom pcFetch försöker JSON.parse:a. Hämta om
       // som ren text istället.
-      const resp = await fetch(PCLOUD_PROXY+'/'+state.host+'/gettextfile?path='+encodeURIComponent(noteFilePath(dateStr))+'&auth='+state.auth+'&access_token='+state.auth, {referrerPolicy:'no-referrer'});
+      const authQS = Object.entries(authParams()).map(function(kv){ return kv[0]+'='+encodeURIComponent(kv[1]); }).join('&');
+      const resp = await fetch(PCLOUD_PROXY+'/'+state.host+'/gettextfile?path='+encodeURIComponent(noteFilePath(dateStr))+'&'+authQS, {referrerPolicy:'no-referrer'});
       if (resp.ok){ const t = await resp.text(); state.cache[dateStr]=t; return t; }
     }
     throw e;
