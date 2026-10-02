@@ -508,28 +508,21 @@ function imageFolderPath(dateStr){
 
 async function readNoteRaw(dateStr){
   if (state.cache[dateStr] !== undefined) return state.cache[dateStr];
-  try {
-    const json = await pcFetch(state.host, 'gettextfile', Object.assign({ path: noteFilePath(dateStr) }, authParams()));
-    // gettextfile kan antingen ge {result:0, content:"..."} eller (om filen
-    // saknas) ett vanligt felsvar. Vi hanterar båda formerna försiktigt.
-    if (json.result === 0){
-      const content = (json.content !== undefined) ? json.content : (typeof json === 'string' ? json : '');
-      state.cache[dateStr] = content;
-      return content;
-    }
-    if (json.result === 2009 || json.result === 2005){ state.cache[dateStr] = ''; return ''; }
-    throw new Error(pcErrorText(json));
-  } catch(e){
-    if (e.message && e.message.indexOf('inte JSON') !== -1){
-      // gettextfile strömmar ibland raw text direkt (inte inlindat i JSON) -
-      // då landar vi här eftersom pcFetch försöker JSON.parse:a. Hämta om
-      // som ren text istället.
-      const authQS = Object.entries(authParams()).map(function(kv){ return kv[0]+'='+encodeURIComponent(kv[1]); }).join('&');
-      const resp = await fetch(PCLOUD_PROXY+'/'+state.host+'/gettextfile?path='+encodeURIComponent(noteFilePath(dateStr))+'&'+authQS, {referrerPolicy:'no-referrer'});
-      if (resp.ok){ const t = await resp.text(); state.cache[dateStr]=t; return t; }
-    }
-    throw e;
-  }
+  // gettextfile förstår inte OAuth-token (access_token) alls - testat och
+  // bekräftat: ger "Log in required" (1000) även med en giltig, fungerande
+  // token. getfilelink fungerar däremot korrekt med både auth och
+  // access_token och ger en tillfällig nedladdningslänk till filen -
+  // hämta innehållet i två steg istället: be om länken, hämta sen den.
+  const link = await pcFetch(state.host, 'getfilelink', Object.assign({ path: noteFilePath(dateStr) }, authParams()));
+  if (link.result === 2009 || link.result === 2005){ state.cache[dateStr] = ''; return ''; }
+  if (link.result !== 0){ throw new Error(pcErrorText(link)); }
+  const dlHost = (link.hosts && link.hosts[0]) || state.host;
+  const downloadUrl = PCLOUD_PROXY + '/' + dlHost + link.path;
+  const resp = await fetch(downloadUrl, {referrerPolicy:'no-referrer'});
+  if (!resp.ok){ throw new Error('Kunde inte hämta filinnehållet (HTTP ' + resp.status + ').'); }
+  const content = await resp.text();
+  state.cache[dateStr] = content;
+  return content;
 }
 
 async function writeNoteRaw(dateStr, content, retry){
