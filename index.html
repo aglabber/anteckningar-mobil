@@ -537,7 +537,15 @@ function noteFolderPath(dateStr){
   return state.base + '/notes/' + yearOf(dateStr);
 }
 function imageFolderPath(dateStr){
-  return state.base + '/images/' + dateStr;
+  // VIKTIGT (bekraftat mot den riktiga, levande koden i
+  // analyzers/notes_engine.py pa datorn, 2026-10-08): bilder ligger
+  // under notes/images/<datum>/, INTE direkt under images/<datum>/ som
+  // det stod har innan - se _images_dir() i notes_engine.py. Den
+  // relativa textreferensen "../images/<datum>/fil" ar ratt syntax och
+  // orord (den later den riktiga Anteckningar-sidan pa datorn hitta
+  // bilden korrekt, via resolve_image_path() dar) - det var bara
+  // UPPLADDNINGS-malet som laddade upp till fel mapp, en niva for hogt.
+  return state.base + '/notes/images/' + dateStr;
 }
 
 // pCloud:s "createfolderifnotexists" skapar INTE mellanliggande mappar at
