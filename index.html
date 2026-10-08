@@ -47,7 +47,17 @@
     width:100%; background:var(--panel2); color:var(--text); border:1px solid var(--border);
     border-radius:10px; padding:10px; font-size:16px; font-family:inherit; resize:vertical;
   }
-  #quickCapture{min-height:90px;}
+  /* quickCapture ar numera en "contenteditable"-div, inte en textarea - se
+     kommentaren vid HTML-blocket langre ner och vid JS-funktionerna
+     getCaptureValue/insertTextAtCaret for varfor. Den ska se och kannas
+     likadan ut som ett vanligt textfalt, darfor samma matt/farger har. */
+  .captureArea{
+    width:100%; min-height:90px; background:var(--panel2); color:var(--text); border:1px solid var(--border);
+    border-radius:10px; padding:10px; font-size:16px; font-family:inherit;
+    white-space:pre-wrap; word-break:break-word; overflow-wrap:break-word; overflow-y:auto;
+    outline:none;
+  }
+  .captureArea:empty:before{ content:attr(data-placeholder); color:var(--muted); }
   .row{display:flex; gap:8px; align-items:center;}
   .row.right{justify-content:flex-end;}
   button.primary{
@@ -152,12 +162,22 @@
 
   <main>
     <div id="captureBox">
-      <textarea id="quickCapture" placeholder="Skriv en anteckning... #tagg $TICKER   (klistra in en bild med Ctrl+V / lång-tryck-klistra)"></textarea>
+      <!-- quickCapture AR INTE langre en <textarea> - den ar en "contenteditable"-div.
+           Varfor: mobilwebblasare (sarskilt Android) skickar ofta inte med nagon
+           bilddata i "paste"-handelsen for vanliga textfalt, men gor det mycket
+           mer palitligt for contenteditable-element. Den beter sig i praktiken
+           likadant som textarean gjorde (samma utseende, samma Ctrl+Enter-genvag
+           for att spara) - se JS-kommentarerna vid getCaptureValue/insertTextAtCaret
+           for hur vi hall den enkel (bara textnoder, aldrig nastlade <div>/<br>). -->
+      <div id="quickCapture" class="captureArea" contenteditable="true" role="textbox" aria-multiline="true"
+           data-placeholder="Skriv en anteckning... #tagg $TICKER   (klistra in en bild, eller tryck på 📷-knappen)"></div>
       <div class="row" style="margin-top:8px;">
-        <span class="muted" id="captureHint">Sparas som ## {tid} när du trycker Spara</span>
+        <button class="secondary" id="btnAddImage">📷 Lägg till bild</button>
         <span style="flex:1;"></span>
         <button class="primary" id="btnSave">Spara</button>
       </div>
+      <div class="muted" id="captureHint" style="margin-top:4px;">Sparas som ## {tid} när du trycker Spara</div>
+      <input type="file" id="imageFileInput" accept="image/*" style="display:none">
       <div id="saveStatus"></div>
     </div>
 
@@ -243,6 +263,16 @@
    lösenord, vilket jag som byggde detta aldrig ska mata in åt dig) och
    listfolder/sök över flera år. Om något strular första gången: kolla
    felmeddelandet som visas i appen, det är pCloud:s egna felsvar, inte gissat.
+
+   UPPDATERAT (klistra-in-bild pa mobil): quickCapture byttes fran <textarea>
+   till en "contenteditable"-div, for att lang-tryck-klistra av bilder ska
+   fungera palitligare pa mobilwebblasare (framst Android) - se motivering
+   vid CSS-klassen .captureArea och vid getCaptureValue/insertTextAtCaret
+   har nedan. INTE testat live pa en riktig telefon an (kunde inte testas i
+   den miljo det har byggdes i) - testa forst pa din S25 Ultra och hor av dig
+   om nagot beter sig konstigt (tangentbord, autokorrigering, emoji-valjare
+   kan i teorin bete sig lite annorlunda i en contenteditable-ruta an i ett
+   vanligt textfalt, aven om vi forsokt halla den sa textfalts-lik som mojligt).
    ============================================================ */
 
 const LS = {
@@ -670,14 +700,14 @@ async function loadDay(dateStr){
 function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 async function doSave(){
-  const text = el('quickCapture').value;
+  const text = getCaptureValue();
   if (!text.trim()) return;
   const btn = el('btnSave');
   btn.disabled = true; btn.textContent = 'Sparar...';
   setStatus('saveStatus', '', null);
   try {
     await appendEntry(state.currentDate, nowTimeStr(), text);
-    el('quickCapture').value = '';
+    setCaptureValue('');
     setStatus('saveStatus', '✓ Sparat', 'ok');
     await loadDay(state.currentDate);
   } catch(e){
@@ -687,32 +717,94 @@ async function doSave(){
   }
 }
 
-function insertAtCursor(textarea, text){
-  const start = textarea.selectionStart, end = textarea.selectionEnd;
-  const val = textarea.value;
-  textarea.value = val.slice(0,start) + text + val.slice(end);
-  const pos = start + text.length;
-  textarea.selectionStart = textarea.selectionEnd = pos;
-  textarea.focus();
+// ---------- quickCapture (contenteditable) - hjälpfunktioner ----------
+// Vi håller rutan medvetet enkel: ALLTID bara text-noder, ALDRIG nästlade
+// <div>/<br>/formatterings-element. Det är därför vi fångar upp bade Enter-
+// tangenten och klistring själva nedan, istället för att lita på webbläsarens
+// standardbeteende för contenteditable (som annars brukar klämma in ett nytt
+// <div> per rad). Så länge det stämmer kan vi läsa/skriva innehållet med
+// vanliga textContent - enklare och snabbare än innerText, och vi slipper
+// innerText:s kända småskillnader mellan webbläsare kring sista radbrytningen.
+function getCaptureValue(){
+  return el('quickCapture').textContent;
+}
+function setCaptureValue(text){
+  el('quickCapture').textContent = text;
 }
 
-async function handlePasteImage(e){
-  const items = (e.clipboardData || e.originalEvent && e.originalEvent.clipboardData || {}).items;
-  if (!items) return;
-  let imageItem = null;
-  for (const it of items){ if (it.type && it.type.indexOf('image/') === 0){ imageItem = it; break; } }
-  if (!imageItem) return; // vanlig textklistring - låt webbläsaren sköta det själv
-  e.preventDefault();
-  const blob = imageItem.getAsFile();
-  const ext = (imageItem.type.split('/')[1] || 'png').replace('jpeg','jpg');
-  const ta = e.target;
-  insertAtCursor(ta, '\n[laddar upp bild...]\n');
+// Sätter in text vid markören/markeringen i en contenteditable-ruta, och
+// ersätter eventuellt markerad text (precis som en vanlig inmatning gör).
+// textarea.selectionStart/selectionEnd (som den gamla insertAtCursor-
+// funktionen byggde på) finns inte för contenteditable - Selection/Range-API:t
+// är motsvarigheten.
+function insertTextAtCaret(container, text){
+  container.focus();
+  const sel = window.getSelection();
+  let range;
+  if (sel && sel.rangeCount && container.contains(sel.anchorNode)){
+    range = sel.getRangeAt(0);
+  } else {
+    // Ingen aktiv markering inuti rutan just nu (t.ex. om nåt annat hann
+    // ta fokus) - lägg texten sist i rutan istället för att gissa fel plats.
+    range = document.createRange();
+    range.selectNodeContents(container);
+    range.collapse(false);
+  }
+  range.deleteContents();
+  const node = document.createTextNode(text);
+  range.insertNode(node);
+  range.setStartAfter(node);
+  range.setEndAfter(node);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+async function insertImageAtCaret(container, blob, ext){
+  const placeholder = '\n[laddar upp bild...]\n';
+  insertTextAtCaret(container, placeholder);
   try {
     const relPath = await uploadImageBlob(state.currentDate, blob, ext);
-    ta.value = ta.value.replace('\n[laddar upp bild...]\n', '\n![]('+relPath+')\n');
+    setCaptureValue(getCaptureValue().replace(placeholder, '\n![]('+relPath+')\n'));
   } catch(err){
-    ta.value = ta.value.replace('\n[laddar upp bild...]\n', '\n[bilduppladdning misslyckades: '+err.message+']\n');
+    setCaptureValue(getCaptureValue().replace(placeholder, '\n[bilduppladdning misslyckades: '+err.message+']\n'));
   }
+}
+
+// Hanterar BÅDE bild- och textklistring i quickCapture. Vi tar över all
+// klistring själva (preventDefault alltid) istället för att bara fånga upp
+// bilder och annars låta webbläsaren sköta resten - annars kan en klistrad
+// bit text från t.ex. en webbsida komma in som HTML-formatering/nästlade
+// element i rutan, vilket skulle stöka till markdown-filen vi sparar till
+// pCloud (se kommentaren vid getCaptureValue ovan om varför vi vill hålla
+// rutan till rena textnoder).
+async function handlePaste(e){
+  const cd = e.clipboardData || (e.originalEvent && e.originalEvent.clipboardData);
+  if (!cd) return;
+  const items = cd.items;
+  let imageItem = null;
+  if (items){
+    for (const it of items){ if (it.type && it.type.indexOf('image/') === 0){ imageItem = it; break; } }
+  }
+  e.preventDefault();
+  if (imageItem){
+    const blob = imageItem.getAsFile();
+    const ext = (imageItem.type.split('/')[1] || 'png').replace('jpeg','jpg');
+    await insertImageAtCaret(e.target, blob, ext);
+  } else {
+    const text = cd.getData('text/plain');
+    if (text) insertTextAtCaret(e.target, text);
+  }
+}
+
+// Knappen "📷 Lägg till bild" - den väg som funkar garanterat på ALLA
+// mobiler/webbläsare oavsett hur bra (eller dåligt) de hanterar klistring av
+// bilder. Öppnar telefonens vanliga väljare (kamera eller bildbibliotek).
+async function handleImageFilePicked(e){
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const ext = (file.type.split('/')[1] || 'png').replace('jpeg','jpg');
+  await insertImageAtCaret(el('quickCapture'), file, ext);
+  e.target.value = ''; // så samma bild går att välja igen om man vill
 }
 
 // ---------- Event wiring ----------
@@ -773,10 +865,20 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   el('btnSave').addEventListener('click', doSave);
-  el('quickCapture').addEventListener('paste', handlePasteImage);
+  el('quickCapture').addEventListener('paste', handlePaste);
   el('quickCapture').addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doSave();
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter'){ doSave(); return; }
+    if (e.key === 'Enter'){
+      // Tvingar in en ren \n-rad sjalv istallet for att lata webblasaren
+      // skapa ett nytt <div>/<br>-element (standardbeteendet for en
+      // contenteditable-ruta) - annars hade textContent (som vi laser i
+      // getCaptureValue) tappat radbrytningen.
+      e.preventDefault();
+      insertTextAtCaret(e.target, '\n');
+    }
   });
+  el('btnAddImage').addEventListener('click', () => el('imageFileInput').click());
+  el('imageFileInput').addEventListener('change', handleImageFilePicked);
 
   el('btnPrevDay').addEventListener('click', () => loadDay(addDays(state.currentDate,-1)));
   el('btnNextDay').addEventListener('click', () => loadDay(addDays(state.currentDate,1)));
