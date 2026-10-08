@@ -56,6 +56,10 @@
     border-radius:10px; padding:10px; font-size:16px; font-family:inherit;
     white-space:pre-wrap; word-break:break-word; overflow-wrap:break-word; overflow-y:auto;
     outline:none;
+    /* Uttryckligt tillatet - annars har nagra Android-webblasare/WebView-
+       varianter visat sig inte lita upp lang-tryck-markering/klistra-in-
+       menyn i en contenteditable-ruta om den inte star rakt ut har. */
+    user-select:text; -webkit-user-select:text; -webkit-touch-callout:default;
   }
   .captureArea:empty:before{ content:attr(data-placeholder); color:var(--muted); }
   .row{display:flex; gap:8px; align-items:center;}
@@ -536,6 +540,30 @@ function imageFolderPath(dateStr){
   return state.base + '/images/' + dateStr;
 }
 
+// pCloud:s "createfolderifnotexists" skapar INTE mellanliggande mappar at
+// nagon - den kraver att FORALDERN till mappen du skapar redan finns (precis
+// som vanlig mkdir utan -p). Forsta gangen nagonsin en bild laddas upp finns
+// troligen ".../images/" mappen inte alls annu (bara ".../notes/" har
+// anvants innan), och da racker det INTE att bara forsoka skapa
+// ".../images/2026-10-08" direkt - bade "images" OCH datum-undermappen
+// saknas, och servern svarar da "A component of parent directory does not
+// exist" (pCloud-kod 2002) aven efter ett forsok att skapa mappen, eftersom
+// *dess egen* forelder ocksa saknades. Losning: ga igenom sokvagen niva for
+// niva och skapa varje bit for sig (motsvarar "mkdir -p").
+async function ensureFolderPath(fullPath){
+  const parts = fullPath.split('/').filter(p => p.length > 0);
+  let current = '';
+  for (const part of parts){
+    current += '/' + part;
+    try {
+      await pcAuthedCall('createfolderifnotexists', { path: current });
+    } catch(e){
+      // Fortsatt anda - nasta niva (eller sjalva uppladdningsforsoket efterat)
+      // avslojar om nagot fortfarande faktiskt saknas.
+    }
+  }
+}
+
 async function readNoteRaw(dateStr){
   if (state.cache[dateStr] !== undefined) return state.cache[dateStr];
   // gettextfile förstår inte OAuth-token (access_token) alls - testat och
@@ -565,8 +593,9 @@ async function writeNoteRaw(dateStr, content, retry){
   } catch(e){
     if (!retry && (e.pcResult === 2005 || e.pcResult === 2002)){
       // Mappen för året finns troligen inte än (t.ex. nyårsskifte) - skapa
-      // den och försök en gång till.
-      await pcAuthedCall('createfolderifnotexists', { path: noteFolderPath(dateStr) });
+      // den (och eventuella mellanliggande mappar, se ensureFolderPath) och
+      // försök en gång till.
+      await ensureFolderPath(noteFolderPath(dateStr));
       return writeNoteRaw(dateStr, content, true);
     }
     throw e;
@@ -593,7 +622,7 @@ async function uploadImageBlob(dateStr, blob, ext){
     await pcAuthedCall('uploadfile', {}, fd);
   } catch(e){
     if (e.pcResult === 2005 || e.pcResult === 2002){
-      await pcAuthedCall('createfolderifnotexists', { path: imageFolderPath(dateStr) });
+      await ensureFolderPath(imageFolderPath(dateStr));
       await pcAuthedCall('uploadfile', {}, (function(){ const fd2=new FormData(); fd2.append('path',imageFolderPath(dateStr)); fd2.append('filename',filename); fd2.append('file',blob,filename); return fd2; })());
     } else { throw e; }
   }
